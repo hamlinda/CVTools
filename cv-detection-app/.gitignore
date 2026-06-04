@@ -1,0 +1,8 @@
+.env
+*.pt
+__pycache__/
+node_modules/
+.port_binding
+dist/
+frontend/dist/
+venv/
