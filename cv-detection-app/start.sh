@@ -1,6 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# start.sh — bring down existing frontend/backend and start them in one command
+# Usage: ./start.sh
+
+cd "$(dirname "$0")"
+
+echo "Bringing down any running frontend/backend and starting fresh containers..."
+
+# Single-command: recreate frontend and backend (force recreate replaces existing)
+docker compose up -d --build --force-recreate --remove-orphans frontend backend
+
+echo "Frontend and backend are starting (detached)."
+echo "View logs with: docker compose logs -f frontend backend"
+
+exit 0
+#!/usr/bin/env bash
+set -euo pipefail
+
 # Load env if present
 if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)

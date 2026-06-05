@@ -4,6 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Optionally run inside docker compose
+USE_DOCKER=0
+if [ "${1:-}" = "--docker" ]; then
+  USE_DOCKER=1
+fi
+
 echo "E2E: ensuring .env exists"
 if [ ! -f .env ]; then
   cp .env.example .env
@@ -17,18 +23,29 @@ source "$VENV_DIR/bin/activate"
 
 echo "Installing minimal backend deps (httpx, python-dotenv, fastapi, uvicorn)"
 pip install --upgrade pip
-pip install "python-dotenv>=1.0.0" httpx fastapi uvicorn pillow python-multipart
+pip install "python-dotenv>=1.0.0" httpx fastapi uvicorn pillow python-multipart opencv-python-headless
 
-echo "Starting backend (in background)"
-python3 -u -m backend.main &
-BACKEND_PID=$!
-echo "backend pid=$BACKEND_PID"
+if [ "$USE_DOCKER" -eq 1 ]; then
+  echo "Starting services with Docker Compose..."
+  ./start-with-docker.sh
+  # We will manage cleanup with docker compose down
+else
+  echo "Starting backend (in background)"
+  python3 -u -m backend.main &
+  BACKEND_PID=$!
+  echo "backend pid=$BACKEND_PID"
+fi
 
 cleanup() {
   echo "Cleaning up..."
-  if kill -0 "$BACKEND_PID" 2>/dev/null; then
-    kill "$BACKEND_PID" || true
-    wait "$BACKEND_PID" 2>/dev/null || true
+  if [ "$USE_DOCKER" -eq 1 ]; then
+    echo "Tearing down docker compose services..."
+    docker compose down || true
+  else
+    if kill -0 "$BACKEND_PID" 2>/dev/null; then
+      kill "$BACKEND_PID" || true
+      wait "$BACKEND_PID" 2>/dev/null || true
+    fi
   fi
 }
 trap cleanup EXIT

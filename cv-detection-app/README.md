@@ -37,8 +37,33 @@ Check that Ollama is reachable at `OLLAMA_HOST` (default `http://localhost:11434
 
 ```bash
 ollama pull llava:13b
-ollama pull moondream2
+ollama pull moondream
 curl ${OLLAMA_HOST}/v1/models
+```
+
+## Running with Docker (recommended for redistribution)
+
+This repository supplies a `docker-compose.yml` that starts an Ollama container together with the backend. The Ollama image is configurable via the `OLLAMA_IMAGE` environment variable; by default the compose file references `ollama/ollama:latest` (replace with the official image you prefer).
+
+Quick start using Docker Compose:
+
+```bash
+# build and start Ollama + backend in background
+docker compose up --build -d
+
+# backend will be available on the port in APP_PORT_PREFERRED (default 8080)
+curl http://localhost:8080/api/status
+```
+
+Helper script:
+
+```bash
+./start-with-docker.sh
+```
+
+Notes:
+- The backend is configured by the compose file to use `http://ollama:11434` as `OLLAMA_HOST` so it talks to the Ollama container by service name.
+- If you already run Ollama elsewhere, you can omit the `ollama` service and set `OLLAMA_HOST` to the desired host:port.
 ```
 
 **Active port identification**
@@ -67,7 +92,7 @@ If the preferred port is in use, the app will bind an available port in `APP_POR
 
 ```bash
 ollama pull llava:13b
-ollama pull moondream2
+ollama pull moondream
 ```
 
 ---
@@ -80,7 +105,7 @@ See `.env.example` for full variables. Copy to `.env` and modify.
 
 ## Model Reference
 
-See `.env.example` for model names. Expected VRAM and inference times vary by hardware. Use `moondream2` or `llava:7b` for webcam to reduce latency.
+See `.env.example` for model names. Expected VRAM and inference times vary by hardware. Use `moondream` or `llava:7b` for webcam to reduce latency.
 
 ---
 

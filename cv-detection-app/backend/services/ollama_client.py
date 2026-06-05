@@ -17,14 +17,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-OLLAMA_HOST = os.getenv("OLLAMA_HOST")
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://10.0.0.192:11434")
 OLLAMA_MODEL_IMAGE = os.getenv("OLLAMA_MODEL_IMAGE")
 OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "30"))
 LAN_RETRY_ATTEMPTS = int(os.getenv("LAN_RETRY_ATTEMPTS", "3"))
 LAN_RETRY_DELAY_MS = int(os.getenv("LAN_RETRY_DELAY_MS", "500"))
 
-if not OLLAMA_HOST:
-    raise EnvironmentError("Missing required environment variable: OLLAMA_HOST")
 if not OLLAMA_MODEL_IMAGE:
     raise EnvironmentError("Missing required environment variable: OLLAMA_MODEL_IMAGE")
 
@@ -49,13 +47,18 @@ class OllamaClient:
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            # try to find JSON blob inside text
-            try:
-                start = text.index("{")
-                end = text.rindex("}") + 1
-                return json.loads(text[start:end])
-            except Exception as e:
-                raise ValueError("Failed to parse JSON response from Ollama") from e
+            # Ollama may stream multiple JSON objects (one per event). Try to
+            # extract the last JSON object from the response text and parse it.
+            last_open = text.rfind("{")
+            while last_open != -1:
+                candidate = text[last_open:]
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    # move to previous '{'
+                    last_open = text.rfind("{", 0, last_open)
+            # If we reach here, no valid JSON object could be parsed
+            raise ValueError("Failed to parse JSON response from Ollama")
 
     async def analyze_image(self, image_base64: str, prompt: str) -> Dict[str, Any]:
         """Send image + prompt to Ollama and return parsed JSON results.
