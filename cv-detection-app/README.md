@@ -33,7 +33,7 @@ docker compose up --build
 
 **How to verify Ollama connectivity**
 
-Check that Ollama is reachable at `OLLAMA_HOST` (default `http://localhost:11434`) and that the desired models are pulled:
+Check that Ollama is reachable at `OLLAMA_HOST` (default `http://10.0.0.192:11434`) and that the desired models are pulled:
 
 ```bash
 ollama pull llava:13b
@@ -43,12 +43,12 @@ curl ${OLLAMA_HOST}/v1/models
 
 ## Running with Docker (recommended for redistribution)
 
-This repository supplies a `docker-compose.yml` that starts an Ollama container together with the backend. The Ollama image is configurable via the `OLLAMA_IMAGE` environment variable; by default the compose file references `ollama/ollama:latest` (replace with the official image you prefer).
+This repository supplies a `docker-compose.yml` that starts the backend and frontend. Ollama is not included as a container in this distribution — the app expects a network-accessible Ollama instance configured via `OLLAMA_HOST` (default `http://10.0.0.192:11434`).
 
-Quick start using Docker Compose:
+Quick start using Docker Compose (backend + frontend):
 
 ```bash
-# build and start Ollama + backend in background
+# build and start backend + frontend in background
 docker compose up --build -d
 
 # backend will be available on the port in APP_PORT_PREFERRED (default 8080)
@@ -62,8 +62,7 @@ Helper script:
 ```
 
 Notes:
-- The backend is configured by the compose file to use `http://ollama:11434` as `OLLAMA_HOST` so it talks to the Ollama container by service name.
-- If you already run Ollama elsewhere, you can omit the `ollama` service and set `OLLAMA_HOST` to the desired host:port.
+- The backend reads `OLLAMA_HOST` from the environment; set it to your network Ollama instance (e.g. `http://10.0.0.192:11434`).
 ```
 
 **Active port identification**
