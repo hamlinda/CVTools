@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+WEBCAM_SOURCE = os.getenv("WEBCAM_SOURCE")
 WEBCAM_INDEX = int(os.getenv("WEBCAM_INDEX", "0"))
 WEBCAM_FRAME_WIDTH = int(os.getenv("WEBCAM_FRAME_WIDTH", "1280"))
 WEBCAM_FRAME_HEIGHT = int(os.getenv("WEBCAM_FRAME_HEIGHT", "720"))
@@ -41,8 +42,11 @@ def _encode_mjpeg(frame: np.ndarray) -> bytes:
 
 @router.get("/api/stream")
 async def stream_webcam():
-    # Open webcam
-    cap = cv2.VideoCapture(WEBCAM_INDEX)
+    # Open webcam or video source
+    if WEBCAM_SOURCE:
+        cap = cv2.VideoCapture(WEBCAM_SOURCE)
+    else:
+        cap = cv2.VideoCapture(WEBCAM_INDEX)
     if not cap.isOpened():
         raise HTTPException(status_code=503, detail="Webcam not available")
 

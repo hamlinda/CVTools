@@ -13,9 +13,11 @@ import uvicorn
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routers import image_analysis, webcam_stream, control
 from backend.utils.port_finder import find_available_port
+from backend.services import ollama_client as _ollama_client
 
 load_dotenv()
 
@@ -30,6 +32,24 @@ logger = logging.getLogger(__name__)
 
 def create_app() -> FastAPI:
     app = FastAPI(title="CV Detection App")
+
+    # Configure CORS for browser clients. Allow origins from FRONTEND_ORIGINS
+    # env var (comma-separated). If not provided, allow all origins which is
+    # convenient for local development but should be restricted in production.
+    origins_env = os.getenv("FRONTEND_ORIGINS")
+    if origins_env:
+        origins = [o.strip() for o in origins_env.split(",") if o.strip()]
+    else:
+        origins = ["*"]
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     app.include_router(image_analysis.router)
     app.include_router(webcam_stream.router)
     app.include_router(control.router)
@@ -58,7 +78,11 @@ def main():
                 async with httpx.AsyncClient(timeout=5) as client:
                     # Use POST probe to verify the generate endpoint accepts requests.
                     # Only 2xx will be considered healthy.
-                    model = os.getenv("OLLAMA_MODEL_IMAGE")
+                    # Prefer an explicit environment variable, but fall back to the
+                    # configured value from the Ollama client module (which reads .env
+                    # at import time). This avoids false 404s when load_dotenv() did not
+                    # populate os.environ for the running process.
+                    model = os.getenv("OLLAMA_MODEL_IMAGE") or getattr(_ollama_client, "OLLAMA_MODEL_IMAGE", None)
                     probe_payload = {"model": model, "prompt": "healthcheck"} if model else {"prompt": "healthcheck"}
                     resp = await client.post(endpoint, json=probe_payload)
                     healthy = 200 <= resp.status_code < 300

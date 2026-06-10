@@ -7,9 +7,9 @@ import base64
 import io
 import logging
 import time
-from typing import List
+from typing import List, Optional, Dict
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile, Request
 from pydantic import BaseModel
 
 from dotenv import load_dotenv
@@ -33,14 +33,15 @@ class AnalyzeImageResponse(BaseModel):
     detections: List[Detection]
     elapsed_ms: int
     attempts: int = 1
+    request_headers: Optional[Dict[str, str]] = None
 
 
 MAX_BYTES = 10 * 1024 * 1024  # 10MB
 ALLOWED_CONTENTS = {"image/jpeg", "image/jpg"}
 
 
-@router.post("/api/analyze-image", response_model=AnalyzeImageResponse)
-async def analyze_image(file: UploadFile = File(...)):
+@router.post("/api/analyze-image")
+async def analyze_image(request: Request, file: UploadFile = File(...)):
     # validate content type
     content_type = file.content_type or ""
     if content_type.lower() not in ALLOWED_CONTENTS:
@@ -66,16 +67,39 @@ async def analyze_image(file: UploadFile = File(...)):
     except Exception as e:
         logger.exception("Ollama analyze_image failed: %s", e)
         raise HTTPException(status_code=502, detail="Inference failed")
+    logger.debug("analyze_image parsed type=%s repr=%s", type(parsed), repr(parsed)[:2000])
     elapsed_ms = int((time.time() - start) * 1000)
 
     # parsed is expected to be a JSON object; attempt to extract 'detections' or accept direct list
-    detections_raw = parsed.get("detections") if isinstance(parsed, dict) else parsed
+    detections_raw = None
+    if isinstance(parsed, dict):
+        # If model returned a textual 'response' field (common with streaming), try to parse it
+        if "detections" in parsed:
+            detections_raw = parsed.get("detections")
+        elif isinstance(parsed.get("response"), str) and parsed.get("response").strip():
+            # try to parse embedded JSON inside 'response'
+            try:
+                detections_raw = OllamaClient._safe_parse_json(parsed.get("response"))
+            except Exception:
+                detections_raw = None
+        else:
+            # no 'detections' and no usable 'response' text
+            detections_raw = None
+    else:
+        detections_raw = parsed
     if detections_raw is None:
         # try to recover if model returned top-level list
         if isinstance(parsed, list):
             detections_raw = parsed
         else:
-            raise HTTPException(status_code=502, detail="Malformed model response")
+            # If model explicitly finished but returned no response, treat as empty detections
+            if isinstance(parsed, dict) and parsed.get("done") is True and (not parsed.get("response")):
+                logger.info("Model finished with no detections; returning empty list")
+                detections_raw = []
+            else:
+                snippet = repr(parsed)[:800]
+                logger.error("Malformed model response from Ollama: parsed=%s", snippet)
+                raise HTTPException(status_code=502, detail=f"Malformed model response: {snippet}")
 
     detections = []
     attempts = parsed.get("attempts", 1) if isinstance(parsed, dict) else 1
@@ -94,4 +118,34 @@ async def analyze_image(file: UploadFile = File(...)):
         except Exception:
             continue
 
-    return {"detections": detections, "elapsed_ms": elapsed_ms, "attempts": attempts}
+    # capture incoming request headers for debugging (return a small dict)
+    try:
+        # capture a conservative, serializable subset of headers for debugging
+        req_headers = {
+            'host': request.headers.get('host'),
+            'origin': request.headers.get('origin'),
+            'referer': request.headers.get('referer'),
+            'user-agent': request.headers.get('user-agent'),
+            'content-type': request.headers.get('content-type'),
+            'content-length': request.headers.get('content-length'),
+            'cookie': request.headers.get('cookie'),
+            'x-forwarded-for': request.headers.get('x-forwarded-for'),
+        }
+    except Exception:
+        req_headers = None
+
+    logger.info("Incoming request headers (sample): %s", req_headers)
+
+    # If client requested debug info, include raw aggregated Ollama response when available
+    debug_flag = request.headers.get('x-debug') or request.query_params.get('debug')
+    response_payload = {"detections": detections, "elapsed_ms": elapsed_ms, "attempts": attempts, "request_headers": req_headers}
+    if debug_flag:
+        raw = None
+        try:
+            if isinstance(parsed, dict) and parsed.get('raw_response'):
+                raw = parsed.get('raw_response')
+        except Exception:
+            raw = None
+        response_payload['raw_response'] = raw
+
+    return response_payload

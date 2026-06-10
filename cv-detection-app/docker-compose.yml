@@ -1,3 +1,4 @@
+services:
   backend:
     build: ./backend
     # Run the package entrypoint so the app can negotiate ports and register background tasks
@@ -8,10 +9,29 @@
     working_dir: /app
     ports:
       - "${APP_PORT_PREFERRED:-8080}:${APP_PORT_PREFERRED:-8080}"
+    # To enable webcam from the host, add a device mapping, for example:
+    # devices:
+    #   - "/dev/video0:/dev/video0"
+    # and optionally add capabilities: cap_add: [SYS_ADMIN]
     environment:
       - APP_HOST=0.0.0.0
       - APP_PORT_PREFERRED=${APP_PORT_PREFERRED:-8080}
-      - OLLAMA_HOST=${OLLAMA_HOST:-http://10.0.0.192:11434}
+      - OLLAMA_HOST=http://10.0.0.192:11434
+      # Allow frontend origins for CORS (comma-separated). Use '*' for dev convenience.
+      - FRONTEND_ORIGINS=${FRONTEND_ORIGINS:-*}
+    # Optional: to enable access to a host webcam device, set the environment
+    # variable VIDEO_DEVICE and uncomment the `devices` mapping below.
+    # Example (uncomment to enable):
+    # devices:
+    #   - "${VIDEO_DEVICE:-/dev/video0}:/dev/video0"
+    # cap_add:
+    #   - SYS_ADMIN
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:${APP_PORT_PREFERRED:-8080}/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   frontend:
     image: node:18
@@ -20,6 +40,12 @@
       - ./frontend:/app/frontend
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     ports:
-      - "5173:5173"
+      - "5200:5173"
+    environment:
+      - VITE_BACKEND_URL=http://backend:${APP_PORT_PREFERRED:-8080}
+      # Expose the frontend origin here for convenience (used by backend CORS if not set)
+      - FRONTEND_ORIGINS=${FRONTEND_ORIGINS:-*}
+    depends_on:
+      - backend
 
 volumes: {}

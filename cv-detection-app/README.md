@@ -57,8 +57,8 @@ curl http://localhost:8080/api/status
 
 ## Accessing the running app (dev)
 
-- Frontend (Vite dev server): http://<host>:5173 (example: http://10.0.0.200:5173)
-- Backend API: http://<host>:<port> — the backend writes the bound port to `.port_binding` in the project root when it starts; on this host the file contains `8084`, so the API is available at http://10.0.0.200:8084/api/status
+- Frontend (Vite dev server): http://<host>:5200 (example: http://10.0.0.192:5200)
+- Backend API: http://<host>:<port> — the backend writes the bound port to `.port_binding` in the project root when it starts; on this host the file contains `8084`, so the API is available at http://10.0.0.192:8084/api/status
 
 If you run the frontend locally (not in Docker), start it with:
 
