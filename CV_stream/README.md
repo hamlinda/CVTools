@@ -119,6 +119,11 @@ Run the server to host the detection endpoints. By default, it will list its own
 ```
 *(Or manually via: `python3 tracker_server.py --host 0.0.0.0 --port 5000`)*
 
+To stop the running inference server and related background processes:
+```bash
+./shutdown.sh
+```
+
 #### Step B: Start the Client (Windows Webcam Machine)
 Launch the client and point it to your server's IP address.
 

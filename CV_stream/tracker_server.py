@@ -24,14 +24,17 @@ _SENTINEL = "__CV_SERVER_BOOT__"
 
 def _bootstrap() -> None:
     import venv as _v
-    print("[ bootstrap ] Setting up virtual environment …")
-    _v.create(str(VENV_DIR), with_pip=True, clear=False)
     if sys.platform == "win32":
         pip = VENV_DIR / "Scripts" / "pip.exe"
         py  = VENV_DIR / "Scripts" / "python.exe"
     else:
         pip = VENV_DIR / "bin" / "pip"
         py  = VENV_DIR / "bin" / "python3"
+
+    if not py.exists() or not pip.exists():
+        print("[ bootstrap ] Setting up virtual environment …")
+        _v.create(str(VENV_DIR), with_pip=True, clear=False)
+
     subprocess.check_call([str(pip), "install", "--quiet", "--upgrade", "pip"],
                           stderr=subprocess.DEVNULL)
     subprocess.check_call([str(pip), "install", "--quiet"] + REQUIRES)

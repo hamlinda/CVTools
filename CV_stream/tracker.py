@@ -30,9 +30,6 @@ def _bootstrap() -> None:
     """Create venv + install deps, then re-exec this script inside it."""
     import venv as _venv
 
-    print("[ bootstrap ] Setting up virtual environment …")
-    _venv.create(str(VENV_DIR), with_pip=True, clear=False)
-
     # Locate the venv python / pip executables
     if sys.platform == "win32":
         venv_python = VENV_DIR / "Scripts" / "python.exe"
@@ -40,6 +37,10 @@ def _bootstrap() -> None:
     else:
         venv_python = VENV_DIR / "bin" / "python3"
         venv_pip    = VENV_DIR / "bin" / "pip"
+
+    if not venv_python.exists() or not venv_pip.exists():
+        print("[ bootstrap ] Setting up virtual environment …")
+        _venv.create(str(VENV_DIR), with_pip=True, clear=False)
 
     print("[ bootstrap ] Installing dependencies (first run only) …")
     subprocess.check_call(
