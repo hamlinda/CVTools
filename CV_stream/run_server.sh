@@ -36,4 +36,7 @@ hostname -I 2>/dev/null | tr ' ' '\n' | grep -v '^$' | while read -r ip; do
 done
 echo ""
 
-exec "$PY" "$SCRIPT_DIR/tracker_server.py" "$@"
+nohup "$PY" "$SCRIPT_DIR/tracker_server.py" "$@" > "$SCRIPT_DIR/server.log" 2>&1 &
+echo "Server started in background (PID: $!)."
+echo "Log file: $SCRIPT_DIR/server.log"
+

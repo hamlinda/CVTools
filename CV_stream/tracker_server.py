@@ -158,6 +158,300 @@ _face_net   = None
 _yolo_model = None
 
 
+@app.route("/")
+def index():
+    face_status = "Ready" if _face_net is not None else "Unavailable"
+    face_class = "ready" if _face_net is not None else "missing"
+    yolo_status = "Ready" if _yolo_model is not None else "Unavailable"
+    yolo_class = "ready" if _yolo_model is not None else "missing"
+    
+    html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CV Stream - Inference Server</title>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(22, 28, 45, 0.6);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent-green: #10b981;
+            --accent-green-glow: rgba(16, 185, 129, 0.2);
+            --accent-red: #ef4444;
+            --accent-red-glow: rgba(239, 68, 68, 0.2);
+            --accent-blue: #3b82f6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 680px;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 24px;
+        }
+
+        .title-group h1 {
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .title-group p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--accent-green-glow);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--accent-green);
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .status-badge .dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--accent-green);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .section-title {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.04);
+            transform: translateY(-2px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .model-status {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .model-status.ready {
+            background: var(--accent-green-glow);
+            color: var(--accent-green);
+        }
+
+        .model-status.missing {
+            background: var(--accent-red-glow);
+            color: var(--accent-red);
+        }
+
+        .card-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .endpoints-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+
+        .endpoint-row {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 14px 20px;
+            gap: 16px;
+        }
+
+        .method {
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 6px;
+            min-width: 64px;
+            text-align: center;
+        }
+
+        .method.post {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-blue);
+        }
+
+        .method.get {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+        }
+
+        .path {
+            font-family: monospace;
+            font-size: 14px;
+            font-weight: 600;
+            color: #c7d2fe;
+            flex-grow: 1;
+        }
+
+        .endpoint-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .info-footer {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            padding-top: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="title-group">
+                <h1>CV Stream Inference Server</h1>
+                <p>Linux Host Inference Engine</p>
+            </div>
+            <div class="status-badge">
+                <span class="dot"></span>
+                <span>Online</span>
+            </div>
+        </header>
+
+        <h2 class="section-title">Models Status</h2>
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Face Detector</span>
+                    <span class="model-status __FACE_CLASS__">__FACE_STATUS__</span>
+                </div>
+                <p class="card-desc">OpenCV DNN ResNet SSD model for fast face bounding box detection.</p>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">YOLOv8 Object Detector</span>
+                    <span class="model-status __YOLO_CLASS__">__YOLO_STATUS__</span>
+                </div>
+                <p class="card-desc">Ultralytics YOLOv8n model optimized for person, dog, and cell phone tracking.</p>
+            </div>
+        </div>
+
+        <h2 class="section-title">API Endpoints</h2>
+        <div class="endpoints-list">
+            <div class="endpoint-row">
+                <span class="method get">GET</span>
+                <span class="path">/health</span>
+                <span class="endpoint-desc">Check service health & models availability</span>
+            </div>
+            <div class="endpoint-row">
+                <span class="method post">POST</span>
+                <span class="path">/detect</span>
+                <span class="endpoint-desc">Accepts raw JPEG data, returns annotated JPEG</span>
+            </div>
+        </div>
+
+        <div class="info-footer">
+            <p>Connect your CV Stream client to: <code style="color: #fff; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-family: monospace;">http://&lt;SERVER_IP&gt;:5000</code></p>
+        </div>
+    </div>
+</body>
+</html>"""
+    return html.replace("__FACE_STATUS__", face_status).replace("__FACE_CLASS__", face_class).replace("__YOLO_STATUS__", yolo_status).replace("__YOLO_CLASS__", yolo_class)
+
 @app.route("/health")
 def health():
     return jsonify({
